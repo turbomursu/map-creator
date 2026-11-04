@@ -1,0 +1,8 @@
+name: map-creator
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - openjdk=21
+  - osmium-tool=1.19.1
+  - pip

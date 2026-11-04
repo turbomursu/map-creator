@@ -1,0 +1,4 @@
+The offline overview uses Natural Earth's 1:110m land polygons.
+Natural Earth data is in the public domain.
+https://www.naturalearthdata.com/about/terms-of-use/
+Source: https://github.com/nvkelso/natural-earth-vector

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "map-creator"
+version = "0.1.0"
+description = "Native local OpenStreetMap vector tile workshop"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
+  "httpx>=0.28,<1",
+  "shapely>=2.1,<3",
+  "pyproj>=3.7,<4",
+  "psutil>=7,<8",
+  "pmtiles>=3.4,<4",
+  "mapbox-vector-tile>=2.2,<3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.3,<10", "ruff>=0.11,<1"]
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
