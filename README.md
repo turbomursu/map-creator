@@ -6,7 +6,16 @@ A native Windows, locally hosted OpenStreetMap vector-tile workshop. Select a re
 
 ## Run on Windows
 
-Requires 64-bit Windows, PowerShell, Node.js 22 or newer with npm, an internet connection for setup/source downloads, and substantial free SSD space for large inputs. No Docker, WSL, global Python, global Java, or compiler is required.
+For an end-user online installer ZIP, run `.\scripts\build-installer.ps1` from a
+development checkout with Node.js/npm. The ZIP in `release\` includes the prebuilt
+UI, application, integrity manifest, `Install.cmd`, and `INSTALL.txt`. Extract it
+and run `Install.cmd` for a per-user installation and Start menu shortcut.
+Internet is required for pinned runtime downloads; end users do not need Node.js,
+Python or Java preinstalled. This is an unsigned script installer, not an offline
+bundle or signed MSI. The included instructions cover custom paths, uninstall,
+preserved map data, and the production-validation limitations below.
+
+For setup from a **source checkout** (not the installer ZIP), requires 64-bit Windows, PowerShell, Node.js 22 or newer with npm, an internet connection for setup/source downloads, and substantial free SSD space for large inputs. No Docker, WSL, global Python, global Java, or compiler is required.
 
 From the repository root:
 

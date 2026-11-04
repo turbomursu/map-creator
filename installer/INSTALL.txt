@@ -1,0 +1,65 @@
+FIELDWORK 0.1.0 - WINDOWS X64 ONLINE INSTALLER
+
+REQUIREMENTS
+Windows x64, Windows PowerShell 5.1 or newer, and internet access during setup.
+No administrator rights are needed for the default per-user installation.
+Node.js, Python, Java, Docker and WSL are NOT prerequisites for this package.
+Allow several GiB for downloaded runtime dependencies, plus substantial free
+SSD space and RAM for map processing. Country-scale budgets are not certified.
+This is an unsigned PowerShell installer, not an MSI or a signed EXE.
+
+INSTALL
+1. Download the ZIP from a trusted source; compare its SHA-256 with the provided
+   .sha256 file. A checksum detects corruption, not an untrusted publisher.
+2. Extract ALL files using Windows "Extract All". Do not run inside the ZIP.
+3. Double-click Install.cmd. Do not select "Run as administrator".
+4. Setup verifies the packaged application files, installs to
+   %LOCALAPPDATA%\Fieldwork, downloads pinned native dependencies, installs Python
+   dependencies, and creates a Start menu shortcut. Internet access is required
+   to GitHub, conda.anaconda.org and PyPI. The prebuilt web UI is included.
+5. Launch Fieldwork from the Start menu. It opens http://127.0.0.1:8765.
+   Keep its server terminal open. Close that terminal when finished.
+
+If Windows blocks a downloaded script, review its contents and use file
+Properties > Unblock only if you trust its source. Install.cmd uses a
+process-local execution-policy bypass, not a persistent policy change.
+Organization-managed execution restrictions may still block installation.
+
+CUSTOM INSTALLATION
+In 64-bit Windows PowerShell, from the extracted package directory:
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -InstallDirectory "D:\Apps\Fieldwork"
+Application installation paths must use ASCII characters because of native
+launcher limitations. Unicode map-data paths and imported filenames are tested.
+For a non-ASCII Windows user profile, choose a writable ASCII application path.
+Existing directories are never overwritten. Close/uninstall before reinstalling.
+Failed installations retain install.log and their partial directory for diagnosis.
+
+DATA AND PORTS
+Data is separate: %LOCALAPPDATA%\MapCreator. It survives reinstall/uninstall.
+To choose data storage or a different port, open PowerShell:
+  $env:MAP_CREATOR_DATA = 'D:\MapData'
+  & "$env:LOCALAPPDATA\Fieldwork\scripts\start.ps1" -Port 8766
+Only one app may use a data directory. Never expose the API beyond loopback.
+
+UNINSTALL / UPDATE
+Close Fieldwork, then run the INSTALLED Uninstall.ps1 in Windows PowerShell:
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Fieldwork\Uninstall.ps1"
+Type REMOVE when prompted. This removes the runtime, application and its shortcut,
+but preserves map data and the installation folder. Remove the empty folder
+before reinstalling to the same location. Back up your map data before updates.
+Do not run Uninstall.ps1 from the extracted installer package.
+
+KNOWN VALIDATION LIMITS
+Terrain means OSM natural features/land use, not elevation. PMTiles and MBTiles
+are supported. The ocean-polygon dataset host was unreachable during validation,
+so complete production-source generation remains unverified. Provider jobs fail
+explicitly when required sources are unavailable; no ocean data is silently
+omitted. A representative large-country RAM/disk/performance benchmark is still
+outstanding. Local/native fixture tests are not production certification.
+See README.md and THIRD_PARTY_NOTICES.md for architecture and attribution.
+
+DEVELOPER REBUILD
+From a source checkout with Node.js/npm:
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
+Output ZIP and SHA-256 sidecar are written to release\. Native dependencies are
+downloaded during installation, not bundled or claimed to work offline.
