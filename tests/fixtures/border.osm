@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="map-creator-fixture">
+  <bounds minlat="0" minlon="-0.02" maxlat="0.1" maxlon="0.12"/>
+  <node id="1" version="1" lat="0.01" lon="0.01"/>
+  <node id="2" version="1" lat="0.01" lon="0.09"/>
+  <node id="3" version="1" lat="0.09" lon="0.09"/>
+  <node id="4" version="1" lat="0.09" lon="0.01"/>
+  <node id="5" version="1" lat="0.05" lon="-0.01"/>
+  <node id="6" version="1" lat="0.05" lon="0.11"/>
+  <way id="1" version="1">
+    <nd ref="1"/><nd ref="2"/><nd ref="3"/><nd ref="4"/><nd ref="1"/>
+    <tag k="landuse" v="forest"/>
+  </way>
+  <way id="2" version="1">
+    <nd ref="5"/><nd ref="6"/>
+    <tag k="highway" v="primary"/>
+  </way>
+</osm>

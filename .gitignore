@@ -1,0 +1,11 @@
+.tools/
+.venv/
+node_modules/
+web/dist/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+.ruff_cache/
+test-results/
+playwright-report/
+*.tsbuildinfo
