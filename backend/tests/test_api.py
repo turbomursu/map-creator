@@ -30,6 +30,23 @@ def test_loopback_token_and_origin_guards(api):
     assert client.get("/api/session", headers={"sec-fetch-site": "cross-site"}).status_code == 403
 
 
+def test_preflight_returns_source_specific_network_error_without_creating_review(api, monkeypatch):
+    client, app = api
+    message = ("Source metadata check (HEAD) failed for "
+               "https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip: "
+               "ConnectTimeout. Check firewall, VPN and proxy settings.")
+
+    def fail(spec):
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(app.state.catalog, "preflight", fail)
+    response = client.post("/api/preflight", json=JobSpec(
+        geometry=mapping(box(0, 0, 1, 1))).model_dump())
+    assert response.status_code == 502
+    assert response.json()["detail"] == f"Preflight failed: {message}"
+    assert not app.state.preflights
+
+
 def test_preflight_is_bound_to_configuration_and_single_use(api, monkeypatch):
     client, app = api
     monkeypatch.setattr(app.state.catalog, "preflight", lambda spec: {

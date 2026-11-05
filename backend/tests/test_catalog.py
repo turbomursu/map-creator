@@ -1,6 +1,6 @@
 import httpx
 import pytest
-from app.catalog import Catalog, cache_key, source_headers, trusted_url
+from app.catalog import Catalog, cache_key, source_headers, source_stream, trusted_url
 from app.geometry import normalize_region
 from shapely.geometry import box, mapping
 
@@ -104,3 +104,62 @@ def test_cache_identity_includes_reviewed_snapshot_url():
               "size": 123, "etag": '"same"', "modified": None}
     assert cache_key(source) != cache_key({
         **source, "resolved_url": "https://download.geofabrik.de/finland-261104.osm.pbf"})
+
+
+@pytest.mark.parametrize("error_type", [httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError])
+def test_network_failure_identifies_redirect_target_and_operation(error_type):
+    original = "https://download.geofabrik.de/latest.osm.pbf"
+    target = "https://download.geofabrik.de/dated.osm.pbf"
+
+    def handler(request):
+        if str(request.url) == original:
+            return httpx.Response(307, headers={"location": target})
+        raise error_type("[WinError 10060]", request=request)
+
+    with (httpx.Client(transport=httpx.MockTransport(handler)) as client,
+          pytest.raises(RuntimeError) as caught):
+        source_headers(client, original)
+    message = str(caught.value)
+    assert target in message
+    assert "metadata check (HEAD)" in message
+    assert "download.geofabrik.de" in message
+    assert "firewall, VPN and proxy" in message
+    assert "[WinError 10060]" in message
+    assert isinstance(caught.value.__cause__, error_type)
+
+
+def test_catalog_get_failure_has_source_diagnostics(tmp_path, monkeypatch):
+    import app.catalog
+
+    def handler(request):
+        raise httpx.ConnectTimeout("timed out", request=request)
+
+    original = httpx.Client
+    monkeypatch.setattr(app.catalog.httpx, "Client", lambda **kwargs: original(
+        transport=httpx.MockTransport(handler), **kwargs))
+    with pytest.raises(RuntimeError, match=r"data transfer \(GET\).*index-v1.json"):
+        Catalog(tmp_path).load()
+    assert not (tmp_path / "catalog.json").exists()
+
+
+def test_http_failure_preserves_status_and_source():
+    url = "https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip"
+    with (httpx.Client(transport=httpx.MockTransport(
+        lambda request: httpx.Response(503))) as client,
+          pytest.raises(RuntimeError, match="HTTP 503") as caught):
+        source_headers(client, url)
+    assert url in str(caught.value)
+
+
+def test_transfer_read_timeout_is_contextualized_and_not_silently_truncated():
+    class BrokenStream(httpx.SyncByteStream):
+        def __iter__(self):
+            raise httpx.ReadTimeout("interrupted", request=httpx.Request(
+                "GET", "https://download.geofabrik.de/dated.osm.pbf"))
+            yield b""  # pragma: no cover
+
+    with (httpx.Client(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, stream=BrokenStream()))) as client,
+          pytest.raises(RuntimeError, match=r"data transfer \(GET\).*dated.osm.pbf"),
+          source_stream(client, "GET", "https://download.geofabrik.de/dated.osm.pbf") as response):
+        response.read()

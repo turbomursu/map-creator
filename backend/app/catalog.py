@@ -15,6 +15,7 @@ from app.models import JobSpec
 
 CATALOG_URL = "https://download.geofabrik.de/index-v1.json"
 GIB = 1024 ** 3
+PREFLIGHT_TIMEOUT = httpx.Timeout(60, connect=15)
 AUXILIARY = [
     ("lake_centerline.shp.zip", "https://dev.maptiler.download/geodata/omt/lake_centerline.shp.zip"),
     ("water-polygons-split-3857.zip",
@@ -49,6 +50,31 @@ def trusted_url(url: str):
 
 @contextmanager
 def source_stream(client: httpx.Client, method: str, url: str, **kwargs):
+    operation = "metadata check (HEAD)" if method == "HEAD" else "data transfer (GET)"
+    try:
+        with _source_stream(client, method, url, **kwargs) as response:
+            yield response
+    except (httpx.HTTPError, TimeoutError, ConnectionError) as error:
+        request = getattr(error, "request", None)
+        failed_url = str(request.url) if request is not None else url
+        host = urlparse(failed_url).hostname
+        if isinstance(error, (httpx.TimeoutException, TimeoutError)):
+            reason = f"{type(error).__name__}: connection/response timed out"
+        elif isinstance(error, httpx.HTTPStatusError):
+            reason = f"HTTP {error.response.status_code}"
+        else:
+            reason = f"{type(error).__name__}: connection or transfer failed"
+        raise RuntimeError(
+            f"Source {operation} failed for {failed_url} (host {host}): {reason}. "
+            f"Check this URL in a browser and outbound HTTPS (port 443) access to {host}; "
+            "check firewall, VPN and proxy settings, then retry preflight. "
+            "The provider may be temporarily unavailable. Required data has not been omitted. "
+            f"Technical detail: {error}"
+        ) from error
+
+
+@contextmanager
+def _source_stream(client: httpx.Client, method: str, url: str, **kwargs):
     seen = set()
     for _ in range(6):
         trusted_url(url)
@@ -90,7 +116,7 @@ class Catalog:
 
     def _load(self, refresh=False):
         if refresh or not self.path.exists() or time.time() - self.path.stat().st_mtime > 86400:
-            with (httpx.Client(timeout=60, follow_redirects=False) as client,
+            with (httpx.Client(timeout=PREFLIGHT_TIMEOUT, follow_redirects=False) as client,
                   source_stream(client, "GET", CATALOG_URL) as response):
                 response.read()
                 content = response.json()
@@ -142,7 +168,7 @@ class Catalog:
         region = normalize_region(spec.geometry)
         sources = self.resolve(region, spec.sources, self.load())
         auxiliary = []
-        with httpx.Client(timeout=60, follow_redirects=False) as client:
+        with httpx.Client(timeout=PREFLIGHT_TIMEOUT, follow_redirects=False) as client:
             for source in sources:
                 source.update(source_headers(client, source["url"]))
             for filename, url in AUXILIARY:

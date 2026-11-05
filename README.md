@@ -77,6 +77,17 @@ Native Windows fixture generation, exact clipping including holes, cross-border 
 
 During implementation, the authoritative ocean-polygon source at `osmdata.openstreetmap.de` timed out from this environment using both Python and curl. Alternate mirrors checked were unavailable or required authentication. Production preflight deliberately reports this failure rather than substituting Monaco-only fixtures, dropping ocean data, or claiming the full provider pipeline was validated. Provider-backed generation requires that source to be reachable (or a validated source-mirror decision in a follow-up). Existing validated cached jobs and native fixtures do not need that host.
 
+Preflight checks the catalog/extract and all three auxiliary datasets (also for
+local PBF inputs). Errors identify the failing URL, host, and HEAD metadata or GET
+transfer operation, including redirected targets. Connection waits are bounded
+to 15 seconds and response reads to 60 seconds. Check the named URL in a browser
+and outbound HTTPS/443 firewall, VPN, and proxy settings; `Test-NetConnection
+osmdata.openstreetmap.de -Port 443` can help distinguish connectivity from region
+configuration. If the host alone is unreachable, retry later or contact the
+network administrator/provider. Report the full source-specific error and browser
+result, without credentials. A reachable Geofabrik link does not prove that the
+required ocean-data host is reachable.
+
 An installer/signing flow, full-country performance certification, arbitrary XYZ-directory export, elevation processing, hosted multi-user operation, incremental OSM updates, and arbitrary user scripts are not included. PMTiles/MBTiles export does not include a standalone rendering application. For redistribution, preserve attribution and consult `THIRD_PARTY_NOTICES.md`.
 
 ## Development and validation

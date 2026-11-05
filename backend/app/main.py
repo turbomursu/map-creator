@@ -115,7 +115,7 @@ def create_app(data_root: Path | None = None, start_worker=True) -> FastAPI:
     def get_catalog():
         try:
             return catalog.load()
-        except (OSError, ValueError, httpx.HTTPError) as error:
+        except (OSError, ValueError, RuntimeError, httpx.HTTPError) as error:
             # HTTP/provider failures must be visible instead of a success-shaped empty catalog.
             LOGGER.exception("Could not load catalog")
             raise HTTPException(502, f"Could not load provider catalog: {error}") from error
@@ -167,14 +167,14 @@ def create_app(data_root: Path | None = None, start_worker=True) -> FastAPI:
             from shapely.geometry import shape
             from shapely.ops import unary_union
 
-            from app.catalog import AUXILIARY, source_headers, with_cache_info
+            from app.catalog import AUXILIARY, PREFLIGHT_TIMEOUT, source_headers, with_cache_info
             region = normalize_region(spec.geometry)
             selected = [imports[source_id] for source_id in local_ids]
             coverage = unary_union([shape(source["coverage"]) for source in selected])
             if not coverage.covers(region):
                 raise ValueError("Local inputs' coordinate bounds do not cover the selection.")
             auxiliary = []
-            with httpx.Client(timeout=60, follow_redirects=False) as client:
+            with httpx.Client(timeout=PREFLIGHT_TIMEOUT, follow_redirects=False) as client:
                 for filename, url in AUXILIARY:
                     auxiliary.append({"id": filename, "url": url, **source_headers(client, url)})
             auxiliary = [with_cache_info(data_root, source) for source in auxiliary]
