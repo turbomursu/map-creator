@@ -10,6 +10,12 @@ For an end-user online installer ZIP, run `.\scripts\build-installer.ps1` from a
 development checkout with Node.js/npm. The ZIP in `release\` includes the prebuilt
 UI, application, integrity manifest, `Install.cmd`, and `INSTALL.txt`. Extract it
 and run `Install.cmd` for a per-user installation and Start menu shortcut.
+Setup prompts for application and map-data directories; Enter accepts the defaults.
+`-InstallDirectory`, `-DataDirectory`, and `-NonInteractive` support unattended setup.
+The saved data-directory setting applies to normal launches; `MAP_CREATOR_DATA`
+can override it. Paths must be separate local directories, not nested or junctions.
+Uninstall removes only unchanged recorded files, preserving modified/user-added
+files inside application subdirectories as well as map data.
 Internet is required for pinned runtime downloads; end users do not need Node.js,
 Python or Java preinstalled. This is an unsigned script installer, not an offline
 bundle or signed MSI. The included instructions cover custom paths, uninstall,
