@@ -12,7 +12,6 @@ This project downloads dependencies for the user's own installation. Native exec
 | OpenJDK runtime | GPL-2.0 with Classpath Exception and bundled third-party notices; conda-forge OpenJDK package license files and https://github.com/conda-forge/openjdk-feedstock |
 | Micromamba | BSD-3-Clause and linked dependency notices; https://github.com/mamba-org/mamba |
 | Natural Earth | Public domain; https://www.naturalearthdata.com/about/terms-of-use/ |
-| OSM water polygons | OSM-derived data; https://osmdata.openstreetmap.de/data/water-polygons.html |
 | Lake centerlines | Upstream source/license notices; https://github.com/acalcutt/osm-lakelines |
 | MapLibre GL JS | BSD-3-Clause; https://github.com/maplibre/maplibre-gl-js |
 | TerraDraw and adapter | MIT; https://github.com/JamesLMilner/terra-draw |

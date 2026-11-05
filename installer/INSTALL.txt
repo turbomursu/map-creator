@@ -1,4 +1,4 @@
-FIELDWORK 0.1.2 - WINDOWS X64 ONLINE INSTALLER
+FIELDWORK 0.1.5 - WINDOWS X64 ONLINE INSTALLER
 
 REQUIREMENTS
 Windows x64, Windows PowerShell 5.1 or newer, and internet access during setup.
@@ -64,15 +64,29 @@ inside the OLD application directory: its old uninstaller predates file-level
 preservation and can delete entire application subfolders. Installing this new
 package does not retroactively change the old copy's uninstall behavior.
 
+LOCAL MAP WORKFLOW (NO EXTERNAL DATA LOADING)
+After runtime setup, choose your local .osm.pbf files in the application.
+The map uses a bundled overview; there are no external tiles, fonts, catalog,
+extract or auxiliary dataset requests. Select the files' declared extent or draw
+or import a smaller region, review local resources, then generate.
+PBFs must be non-history snapshots with declared bounds and complete features.
+Bounds alone do not prove completeness. Multiple files must have matching
+replication timestamps; missing or conflicting snapshots fail explicitly.
+One immutable processing copy is cached per unchanged input, then reused across
+jobs after checksum verification. Original files are never modified. The initial
+copy protects running jobs from source changes; a single input is not merged.
+Old queued provider jobs must be reviewed again using local files.
+Map-data loading is offline, but INSTALLATION still downloads runtime dependencies
+from GitHub, conda-forge and PyPI. This ZIP is not an offline runtime installer.
+
 KNOWN VALIDATION LIMITS
-Geofabrik "latest" redirects are supported: preflight pins the dated extract and
-downloads/resumes use that reviewed snapshot. If it changes or expires, rerun
-preflight rather than reusing an old review.
 Terrain means OSM natural features/land use, not elevation. PMTiles and MBTiles
-are supported. The ocean-polygon dataset host was unreachable during validation,
-so complete production-source generation remains unverified. Provider jobs fail
-explicitly when required sources are unavailable; no ocean data is silently
-omitted. A representative large-country RAM/disk/performance benchmark is still
+are supported. Only local OSM content is generated: no ocean polygons, external
+lake centerlines or Natural Earth basemap data. Inland water remains, but ocean
+fills, low-zoom generalized detail and some lake labels may be missing. Warnings
+and export manifests record these limits. The bundled Natural Earth overview is
+for selecting regions, not included in exported tiles.
+A representative large-country RAM/disk/performance benchmark is still
 outstanding. Local/native fixture tests are not production certification.
 See README.md and THIRD_PARTY_NOTICES.md for architecture and attribution.
 

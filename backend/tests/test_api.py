@@ -8,7 +8,7 @@ import pytest
 from app.main import create_app
 from app.models import JobSpec
 from fastapi.testclient import TestClient
-from shapely.geometry import box, mapping
+from shapely.geometry import box, mapping, shape
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -30,11 +30,27 @@ def test_loopback_token_and_origin_guards(api):
     assert client.get("/api/session", headers={"sec-fetch-site": "cross-site"}).status_code == 403
 
 
+def test_preflight_requires_local_inputs_without_catalog_loading(api, monkeypatch):
+    client, app = api
+
+    def fail(*args):
+        raise AssertionError("Catalog must not be loaded")
+
+    monkeypatch.setattr(app.state.catalog, "load", fail)
+    response = client.post("/api/preflight", json=JobSpec(
+        geometry=mapping(box(0, 0, 1, 1))).model_dump())
+    assert response.status_code == 422
+    assert "Choose local" in response.json()["detail"]
+    assert client.get("/api/catalog").status_code == 410
+    assert not app.state.preflights
+
+
 def test_preflight_is_bound_to_configuration_and_single_use(api, monkeypatch):
     client, app = api
-    monkeypatch.setattr(app.state.catalog, "preflight", lambda spec: {
-        "sources": [], "auxiliary": [], "errors": [], "disk_required": 0})
-    spec = JobSpec(geometry=mapping(box(0, 0, 1, 1))).model_dump()
+    app.state.imports["local-test"] = {"id": "local-test", "name": "local fixture",
+                                     "size": 1, "coverage": mapping(box(-1, -1, 2, 2))}
+    spec = JobSpec(geometry=mapping(box(0, 0, 1, 1)), sources=["local-test"],
+                   memory_gb=1).model_dump()
     review = client.post("/api/preflight", json=spec).json()
     changed = {**spec, "maxzoom": 10}
     assert client.post("/api/jobs", json={"spec": changed,
@@ -80,6 +96,28 @@ def test_native_import_handles_unicode_filenames(api, tmp_path, monkeypatch):
     imported = app.state.imports[response.json()[0]["id"]]
     assert imported["local_path"] == str(source)
     assert imported["coverage"]["type"] == "Polygon"
+
+
+def test_import_selection_unions_overlapping_bounds(api, tmp_path, monkeypatch):
+    import tkinter
+    from tkinter import filedialog
+
+    client, _ = api
+    paths = [tmp_path / f"part{index}.osm.pbf" for index in range(2)]
+    for path in paths:
+        path.write_bytes(b"header-fixture")
+    headers = iter([
+        {"header": {"with_history": False, "boxes": [[0, 0, 2, 1]]}},
+        {"header": {"with_history": False, "boxes": [[1, 0, 3, 1]]}},
+    ])
+    monkeypatch.setattr(tkinter, "Tk", Mock())
+    monkeypatch.setattr(filedialog, "askopenfilenames", lambda **kwargs: [str(path) for path in paths])
+    monkeypatch.setattr("app.main.run_native", lambda *args, **kwargs: json.dumps(next(headers)))
+    response = client.post("/api/import")
+    assert response.status_code == 200, response.text
+    selection = shape(response.json()[0]["selection"])
+    assert selection.is_valid
+    assert selection.equals(box(0, 0, 3, 1))
 
 
 @pytest.mark.skipif(not (ROOT / ".tools" / "native fixture space" / "output.pmtiles").exists(),
