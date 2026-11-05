@@ -39,7 +39,6 @@ function App() {
   const [layers, setLayers] = useState<string[]>([]);
   const [sources, setSources] = useState<string[]>([]);
   const [localSources, setLocalSources] = useState<{ id: string; name: string }[]>([]);
-  const [catalog, setCatalog] = useState<FeatureCollection<Polygon | MultiPolygon, { id: string; name: string }> | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<Job | null>(null);
@@ -244,31 +243,27 @@ function App() {
               draw.current?.clear(); setGeometry(value); fit(value);
             });
           }} /></label><button className="text-button" onClick={() => {
-            draw.current?.clear(); setGeometry(null); setSources([]); setPlan(null);
+            draw.current?.clear(); setGeometry(null); setPlan(null);
           }}>Clear region</button></div>
-          <button className="secondary wide" disabled={busy} onClick={() => void action(async () => {
-            setCatalog(await api("/api/catalog"));
-          })}>Browse provider extracts</button>
-          {catalog && <label className="field">Country or provider extract<select defaultValue="" onChange={e => {
-            const feature = catalog.features.find(item => item.properties.id === e.target.value);
-            if (feature) { draw.current?.clear(); setGeometry(feature.geometry); setSources([feature.properties.id]); fit(feature.geometry); }
-          }}><option value="" disabled>Choose an extract…</option>
-            {[...catalog.features].sort((a, b) => a.properties.name.localeCompare(b.properties.name)).map(feature =>
-              <option key={feature.properties.id} value={feature.properties.id}>{feature.properties.name}</option>)}
-          </select></label>}
-          <button className="text-button import-pbf" disabled={busy} onClick={() => void action(async () => {
-            const imported = await api<{ id: string; name: string }[]>("/api/import", { method: "POST" });
-            if (imported.length) { setLocalSources(imported); setSources(imported.map(item => item.id)); }
-          })}>Or choose local .osm.pbf files</button>
-          {localSources.length > 0 && <p className="hint">{localSources.map(item => item.name).join(", ")}
-            <button className="text-button" onClick={() => { setLocalSources([]); setSources([]); }}>Use provider instead</button></p>}
+          <button className="secondary wide import-pbf" disabled={busy || !mapReady} onClick={() => void action(async () => {
+            const imported = await api<{ id: string; name: string; coverage: Polygon | MultiPolygon; selection?: Polygon | MultiPolygon }[]>("/api/import", { method: "POST" });
+            if (imported.length) {
+              setLocalSources(imported); setSources(imported.map(item => item.id));
+              if (!geometry) {
+                const coverage = imported[0].selection ?? imported[0].coverage;
+                draw.current?.clear(); setGeometry(coverage); fit(coverage);
+              }
+            }
+          })}>Choose local .osm.pbf files</button>
+          <p className="hint">No external map-data loading. Choose complete local snapshots, then draw or import a smaller region if needed.</p>
+          {localSources.length > 0 && <p className="hint">{localSources.map(item => item.name).join(", ")}</p>}
           <div className="region-status"><span className={geometry ? "online-dot" : "empty-dot"} />
             {geometry ? "Region selected · ready to review" : "No region selected yet"}</div>
         </section>
         <section className="section"><span className="step">02 / MAP CONTENT</span><h2>Keep what matters.</h2>
           <div className="segmented"><button onClick={() => setLayers(session?.nature ?? [])}>Natural features</button>
             <button onClick={() => setLayers(session?.standard ?? [])}>Standard map</button></div>
-          <p className="hint">Land-use, forests, parks & water. No elevation data.</p>
+          <p className="hint">Local OSM land-use, forests, parks & inland water. No elevation, ocean fills, external lake centerlines or generalized basemap data.</p>
           <div className="layer-list">{session?.layers.map(layer => <label key={layer}>
             <input type="checkbox" checked={layers.includes(layer)} onChange={e =>
               setLayers(e.target.checked ? [...layers, layer] : layers.filter(value => value !== layer))} />
@@ -284,7 +279,7 @@ function App() {
           <div className="format-options">{(["pmtiles", "mbtiles"] as const).map(value =>
             <button key={value} className={format === value ? "active" : ""} onClick={() => setFormat(value)}>
               <strong>{value.toUpperCase()}</strong><span>{value === "pmtiles" ? "Portable · range-readable" : "SQLite · GIS-friendly"}</span></button>)}</div>
-          <button className="primary wide" disabled={busy || !geometry || !layers.length} onClick={() => void action(async () => {
+          <button className="primary wide" disabled={busy || !geometry || !layers.length || !sources.length} onClick={() => void action(async () => {
             const result = await api<Plan>("/api/preflight", { method: "POST", body: JSON.stringify(spec()) });
             setPlan(result); showRegion(result.geometry);
           })}>{busy ? "Working…" : "Review sources & resources"} <span>→</span></button>
@@ -294,8 +289,7 @@ function App() {
             <h3>{plan.sources.length} OSM source{plan.sources.length > 1 ? "s" : ""}</h3>
             {plan.sources.map(source => <p key={source.id}>{source.name}{source.cached ? " · cached" : ""}
               <strong>{bytes(source.size)}</strong></p>)}
-            <h3>Basemap auxiliary data</h3>{plan.auxiliary.map(source =>
-              <p key={source.id}>{source.id}{source.cached ? " · cached" : ""} <strong>{bytes(source.size)}</strong></p>)}
+            <p className="hint">Local files only · no external dataset downloads. A validated immutable processing copy is reused when unchanged.</p>
             {plan.warnings.map(value => <p className="hint" key={value}>{value}</p>)}
             {plan.errors.map(value => <p className="error-text" key={value}>{value}</p>)}
             <button className="primary wide" disabled={busy || plan.errors.length > 0 || !session?.native_ready}
@@ -303,7 +297,7 @@ function App() {
                 const job = await api<Job>("/api/jobs", { method: "POST", body: JSON.stringify({
                   spec: spec(), preflight_id: plan.preflight_id }) });
                 setSelected(job); setEvents([]); setPlan(null); setJobs(await api("/api/jobs"));
-              })}>Approve download & generate</button>
+              })}>Generate from local files</button>
           </div>}
         </section></>}
       <section className="section history"><span className="step">WORKSPACE / RECENT JOBS</span>
@@ -314,9 +308,9 @@ function App() {
           <em className={job.state}>{job.state}</em></button>)}
         <button className="text-button" disabled={busy || jobs.some(job => !terminal.has(job.state))}
           onClick={() => void action(async () => {
-            if (window.confirm("Remove all cached source downloads? Completed map exports are kept."))
+            if (window.confirm("Remove cached processing copies? Original local files and completed map exports are kept."))
               await api("/api/cache", { method: "DELETE" });
-          })}>Clear downloaded source cache</button>
+          })}>Clear local processing cache</button>
       </section>
       <footer>Built from OpenStreetMap. Made on your machine.</footer>
     </aside>

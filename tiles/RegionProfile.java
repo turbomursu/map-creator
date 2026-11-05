@@ -141,16 +141,8 @@ public class RegionProfile extends OpenMapTilesProfile {
     if (!region.isValid() || region.isEmpty() || region.getDimension() != 2) {
       throw new IllegalArgumentException("AOI must be a nonempty valid polygon");
     }
-    Path sources = arguments.file("download_dir", "source cache", Path.of("data", "sources"));
     var runner = Planetiler.create(arguments);
     runner.setProfile(new RegionProfile(runner, region));
-    if (arguments.getBoolean("auxiliary", "include basemap auxiliary data", true)) {
-      runner.addShapefileSource("EPSG:3857", LAKE_CENTERLINE_SOURCE,
-          sources.resolve("lake_centerline.shp.zip"),
-          "https://dev.maptiler.download/geodata/omt/lake_centerline.shp.zip")
-        .addNaturalEarthSource(NATURAL_EARTH_SOURCE, sources.resolve("natural_earth_vector.sqlite.zip"),
-          "https://dev.maptiler.download/geodata/omt/natural_earth_vector.sqlite.zip");
-    }
     runner.addOsmSource(OSM_SOURCE, arguments.file("osm_path", "local OSM PBF", null))
       .setOutput(arguments.file("output", "tile archive", null))
       .run();

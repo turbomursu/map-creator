@@ -113,12 +113,7 @@ def create_app(data_root: Path | None = None, start_worker=True) -> FastAPI:
 
     @app.get("/api/catalog")
     def get_catalog():
-        try:
-            return catalog.load()
-        except (OSError, ValueError, RuntimeError, httpx.HTTPError) as error:
-            # HTTP/provider failures must be visible instead of a success-shaped empty catalog.
-            LOGGER.exception("Could not load catalog")
-            raise HTTPException(502, f"Could not load provider catalog: {error}") from error
+        raise HTTPException(410, "Provider downloads are disabled. Choose local .osm.pbf files.")
 
     @app.post("/api/import")
     def import_local():
@@ -134,6 +129,7 @@ def create_app(data_root: Path | None = None, start_worker=True) -> FastAPI:
         result = []
         for name in selected:
             path = Path(name).resolve(strict=True)
+            before = path.stat()
             source_id = "local-" + uuid.uuid4().hex
             native = tools / "runtime" / "Library" / "bin"
             env = {**os.environ, "PATH": str(native) + os.pathsep + os.environ["PATH"]}
@@ -149,10 +145,18 @@ def create_app(data_root: Path | None = None, start_worker=True) -> FastAPI:
             from shapely.ops import unary_union
             coverage = unary_union([box(*bounds) for bounds in info["header"]["boxes"]])
             stat = path.stat()
+            if (stat.st_size, stat.st_mtime_ns) != (before.st_size, before.st_mtime_ns):
+                raise ValueError("Local input changed during import. Select it again once writing has finished.")
             imports[source_id] = {"id": source_id, "name": path.name, "local_path": str(path),
                                   "size": stat.st_size, "mtime_ns": stat.st_mtime_ns,
                                   "coverage": coverage.__geo_interface__}
-            result.append({"id": source_id, "name": path.name})
+            result.append({"id": source_id, "name": path.name, "coverage": coverage.__geo_interface__})
+        if result:
+            from shapely.geometry import shape
+
+            result[0]["selection"] = unary_union([
+                shape(item["coverage"]) for item in result
+            ]).__geo_interface__
         temporary = imports_path.with_suffix(".part")
         temporary.write_text(json.dumps(imports), encoding="utf-8")
         temporary.replace(imports_path)
@@ -168,24 +172,15 @@ def create_app(data_root: Path | None = None, start_worker=True) -> FastAPI:
             from shapely.ops import unary_union
 
             from app.catalog import (
-                AUXILIARY,
-                OCEAN_WARNING,
-                PREFLIGHT_TIMEOUT,
-                source_headers,
-                with_cache_info,
+                LOCAL_WARNING,
             )
             region = normalize_region(spec.geometry)
             selected = [imports[source_id] for source_id in local_ids]
             coverage = unary_union([shape(source["coverage"]) for source in selected])
             if not coverage.covers(region):
                 raise ValueError("Local inputs' coordinate bounds do not cover the selection.")
-            auxiliary = []
-            with httpx.Client(timeout=PREFLIGHT_TIMEOUT, follow_redirects=False) as client:
-                for filename, url in AUXILIARY:
-                    auxiliary.append({"id": filename, "url": url, **source_headers(client, url)})
-            auxiliary = [with_cache_info(data_root, source) for source in auxiliary]
             size = sum(source["size"] for source in selected)
-            required = size * 14 + sum(source["size"] for source in auxiliary) + 2 * GIB
+            required = size * 14 + 2 * GIB
             errors = []
             if shutil.disk_usage(data_root).free < required:
                 errors.append("Insufficient free disk for these inputs.")
@@ -193,15 +188,15 @@ def create_app(data_root: Path | None = None, start_worker=True) -> FastAPI:
                 errors.append("Memory budget must leave 1 GiB available for the application.")
             if size * 0.5 > spec.memory_gb * GIB:
                 errors.append("Input size requires a larger JVM memory budget.")
-            return {**describe_region(region), "sources": selected, "auxiliary": auxiliary,
-                    "download_bytes": sum(s["size"] for s in auxiliary if not s["cached"]),
+            return {**describe_region(region), "sources": selected, "auxiliary": [],
+                    "download_bytes": 0,
                     "disk_required": required, "free_disk": shutil.disk_usage(data_root).free,
                     "available_memory": psutil.virtual_memory().available, "errors": errors,
                     "warnings": [("Local coordinate bounds do not prove source completeness. "
                                   "Use complete provider extracts or verified local snapshots."),
                                  "Resource estimates are uncalibrated country-scale heuristics.",
-                                 OCEAN_WARNING]}
-        return catalog.preflight(spec)
+                                 LOCAL_WARNING]}
+        raise ValueError("Choose local .osm.pbf files before reviewing resources. Provider downloads are disabled.")
 
     @app.post("/api/preflight")
     def preflight(spec: JobSpec):

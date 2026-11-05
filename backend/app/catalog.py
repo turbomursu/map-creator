@@ -17,6 +17,8 @@ CATALOG_URL = "https://download.geofabrik.de/index-v1.json"
 GIB = 1024 ** 3
 PREFLIGHT_TIMEOUT = httpx.Timeout(60, connect=15)
 OCEAN_WARNING = "Ocean polygons are not included. Ocean/coastline water fills may be missing."
+LOCAL_WARNING = ("Local OSM only: no ocean polygons, lake centerlines or Natural Earth basemap data. "
+                 "Ocean/coastline fills, low-zoom generalized detail and some lake labels may be missing.")
 AUXILIARY = [
     ("lake_centerline.shp.zip", "https://dev.maptiler.download/geodata/omt/lake_centerline.shp.zip"),
     ("natural_earth_vector.sqlite.zip",

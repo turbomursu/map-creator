@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 
 from app.artifacts import checksum, validate
-from app.catalog import GIB, OCEAN_WARNING, cache_key, source_headers, source_stream, trusted_url
+from app.catalog import GIB, LOCAL_WARNING, cache_key, source_headers, source_stream, trusted_url
 from app.geometry import normalize_region
 from app.process import Cancelled, run_native
 
@@ -63,7 +63,9 @@ class Pipeline:
                 saved = json.loads(manifest.read_text(encoding="utf-8"))
                 if saved.get("sha256") != self.digest(job_id, destination):
                     raise ValueError("Local input cache checksum failed. Clear the corrupt cache.")
+                self.store.event(job_id, "downloading", f"Reusing validated local copy: {source['name']}")
                 return destination
+            self.store.event(job_id, "downloading", f"Creating immutable local copy: {source['name']}")
             partial = directory / "copy.part"
             with path.open("rb") as reader, partial.open("wb") as writer:
                 for chunk in iter(lambda: reader.read(1024 * 1024), b""):
@@ -154,6 +156,9 @@ class Pipeline:
         temporary = scratch / f"map.{spec['format']}"
         try:
             self.check(job_id)
+            if (not plan["sources"] or
+                any("local_path" not in source for source in plan["sources"]) or plan["auxiliary"]):
+                raise ValueError("This version supports local OSM inputs only. Review a new local-file job.")
             for path in (self.bin / "osmium.exe", self.bin / "java.exe", self.tools / "planetiler.jar"):
                 if not path.is_file():
                     raise ValueError("Native tools missing. Run scripts\\bootstrap.ps1.")
@@ -161,9 +166,6 @@ class Pipeline:
                 raise ValueError("Free disk dropped below the preflight requirement.")
             self.store.update(job_id, "downloading")
             inputs = [self.acquire(job_id, source) for source in plan["sources"]]
-            auxiliary = {}
-            for source in plan["auxiliary"]:
-                auxiliary[source["id"]] = self.acquire(job_id, source)
             self.store.update(job_id, "validating")
             metadata = []
             sources = []
@@ -225,14 +227,8 @@ class Pipeline:
                 f"--maxzoom={spec['maxzoom']}", "--threads=2", "--force",
                 "--bounds=" + ",".join(str(value) for value in region.bounds),
                 "--only-layers=" + ",".join(spec["layers"]),
-                f"--auxiliary={'true' if auxiliary else 'false'}",
+                "--auxiliary=false",
             ]
-            for key, filename in [
-                ("lake_centerlines", "lake_centerline.shp.zip"),
-                ("natural_earth", "natural_earth_vector.sqlite.zip"),
-            ]:
-                if filename in auxiliary:
-                    arguments.append(f"--{key}-path={os.path.relpath(auxiliary[filename], directory)}")
             self.run(job_id, *arguments)
             self.check(job_id)
             self.store.update(job_id, "verifying")
@@ -247,9 +243,8 @@ class Pipeline:
                 "schema": "OpenMapTiles (Planetiler 0.10.2 bundled profile)",
                 "attribution": artifact["metadata"]["attribution"],
                 "sources": sources, "artifact": artifact,
-                "auxiliary": [{"id": name, "sha256": self.digest(job_id, path)}
-                              for name, path in auxiliary.items()],
-                "limitations": [OCEAN_WARNING,
+                "auxiliary": [],
+                "limitations": [LOCAL_WARNING,
                                 "MVT geometry quantization has up to one grid-unit boundary tolerance.",
                                 "No elevation or 3D terrain. Country-scale resource estimates are uncalibrated."],
             }

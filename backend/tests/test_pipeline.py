@@ -36,7 +36,7 @@ def test_real_pipeline_publishes_only_validated_output(tmp_path, extension):
     manifest = json.loads((directory / "manifest.json").read_text())
     assert manifest["sources"][0]["sha256"]
     assert manifest["artifact"]["metadata"]["attribution"]
-    assert any("Ocean polygons are not included" in item for item in manifest["limitations"])
+    assert any("Local OSM only" in item for item in manifest["limitations"])
     assert not (directory / "scratch").exists()
 
 
@@ -61,6 +61,29 @@ def test_cancelled_job_never_publishes(tmp_path):
     Pipeline(store, ROOT / ".tools").execute(store.claim())
     assert store.get(job["id"])["state"] == "cancelled"
     assert not (store.directory(job["id"]) / "map.pmtiles").exists()
+
+
+def test_local_input_is_copied_once_reused_and_never_modified(tmp_path):
+    source_path = tmp_path / "input.osm.pbf"
+    source_path.write_bytes(b"unchanged local snapshot")
+    stat = source_path.stat()
+    source = {"id": "local-test", "name": source_path.name, "local_path": str(source_path),
+              "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+    store = Store(tmp_path / "data")
+    pipeline = Pipeline(store, ROOT / ".tools")
+    first = store.create({"name": "First region"}, {})
+    cached = pipeline.acquire(first["id"], source)
+    copied = cached.stat()
+    second = store.create({"name": "Second region"}, {})
+    assert pipeline.acquire(second["id"], source) == cached
+    assert cached.stat().st_mtime_ns == copied.st_mtime_ns
+    assert list((store.root / "cache").glob("*/source.pbf")) == [cached]
+    assert not list(store.directory(second["id"]).glob("*.pbf"))
+    assert source_path.read_bytes() == b"unchanged local snapshot"
+    assert source_path.stat().st_mtime_ns == stat.st_mtime_ns
+    source_path.write_bytes(b"changed")
+    with pytest.raises(ValueError, match="changed since preflight"):
+        pipeline.acquire(second["id"], source)
 
 
 def test_download_resume_requires_matching_source_validators(tmp_path, monkeypatch):
