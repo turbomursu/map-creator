@@ -59,6 +59,10 @@ Map data is never deleted. The installation folder remains; move any preserved
 files elsewhere before reinstalling into that folder. Back up data before updates.
 Uninstall refuses to traverse junctions/symbolic links or remove a running runtime.
 Do not run Uninstall.ps1 from the extracted installer package.
+When upgrading from 0.1.1 or earlier, first back up any files you added or changed
+inside the OLD application directory: its old uninstaller predates file-level
+preservation and can delete entire application subfolders. Installing this new
+package does not retroactively change the old copy's uninstall behavior.
 
 KNOWN VALIDATION LIMITS
 Geofabrik "latest" redirects are supported: preflight pins the dated extract and
