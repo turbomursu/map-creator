@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 
 from app.artifacts import checksum, validate
-from app.catalog import GIB, cache_key, source_headers, trusted_url
+from app.catalog import GIB, cache_key, source_headers, source_stream, trusted_url
 from app.geometry import normalize_region
 from app.process import Cancelled, run_native
 
@@ -79,6 +79,8 @@ class Pipeline:
             manifest.write_text(json.dumps({**source, "sha256": digest}), encoding="utf-8")
             return destination
         trusted_url(source["url"])
+        download_url = source.get("resolved_url", source["url"])
+        trusted_url(download_url)
         key = cache_key(source)
         directory = self.store.root / "cache" / key
         directory.mkdir(parents=True, exist_ok=True)
@@ -94,8 +96,9 @@ class Pipeline:
         partial = directory / "download.part"
         headers = {"Accept-Encoding": "identity"}
         with httpx.Client(timeout=httpx.Timeout(120, connect=30), follow_redirects=False) as client:
-            current = source_headers(client, source["url"])
-            if any(current[k] != source[k] for k in ("size", "etag", "modified")):
+            current = source_headers(client, download_url)
+            if (any(current[k] != source[k] for k in ("size", "etag", "modified")) or
+                current["resolved_url"] != download_url):
                 raise ValueError(f"Source changed since preflight: {source['id']}. Review a new preflight.")
             offset = partial.stat().st_size if partial.exists() else 0
             if offset >= source["size"]:
@@ -106,8 +109,9 @@ class Pipeline:
                 headers.update({"Range": f"bytes={offset}-", "If-Range": validator})
             else:
                 offset = 0
-            with client.stream("GET", source["url"], headers=headers) as response:
-                response.raise_for_status()
+            with source_stream(client, "GET", download_url, headers=headers) as response:
+                if str(response.url) != download_url:
+                    raise ValueError("Download source URL changed since preflight. Review a new preflight.")
                 if offset and response.status_code == 206:
                     expected = f"bytes {offset}-"
                     if not response.headers.get("content-range", "").startswith(expected):
@@ -170,6 +174,7 @@ class Pipeline:
                     raise ValueError("Input must be a sorted, non-history OSM snapshot.")
                 metadata.append(info)
                 sources.append({"id": source["id"], "url": source.get("url"),
+                                "resolved_url": source.get("resolved_url"),
                                 "size": path.stat().st_size, "sha256": self.digest(job_id, path),
                                 "header": info["header"], "data_timestamp": info["data"]["timestamp"]})
             selected = inputs[0]
