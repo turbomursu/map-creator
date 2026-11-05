@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -25,7 +26,7 @@ AUXILIARY = [
 
 def cache_key(source: dict) -> str:
     fields = ("local_path", "size", "mtime_ns") if "local_path" in source else (
-        "url", "size", "etag", "modified")
+        "url", "resolved_url", "size", "etag", "modified")
     identity = {key: source.get(key) for key in fields}
     return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
@@ -46,15 +47,35 @@ def trusted_url(url: str):
     return url
 
 
+@contextmanager
+def source_stream(client: httpx.Client, method: str, url: str, **kwargs):
+    seen = set()
+    for _ in range(6):
+        trusted_url(url)
+        if url in seen:
+            raise ValueError("Data source redirect loop.")
+        seen.add(url)
+        with client.stream(method, url, follow_redirects=False, **kwargs) as response:
+            if response.status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get("location")
+                if not location:
+                    raise ValueError("Data source redirect is missing its Location header.")
+                url = str(response.url.join(location))
+                continue
+            response.raise_for_status()
+            yield response
+            return
+    raise ValueError("Too many data source redirects.")
+
+
 def source_headers(client: httpx.Client, url: str) -> dict:
-    trusted_url(url)
-    response = client.head(url, headers={"Accept-Encoding": "identity"})
-    response.raise_for_status()
-    size = int(response.headers.get("content-length", 0))
-    if size <= 0:
-        raise ValueError(f"Source did not advertise its download size: {url}")
-    return {"size": size, "etag": response.headers.get("etag"),
-            "modified": response.headers.get("last-modified")}
+    with source_stream(client, "HEAD", url, headers={"Accept-Encoding": "identity"}) as response:
+        size = int(response.headers.get("content-length", 0))
+        if size <= 0:
+            raise ValueError(f"Source did not advertise its download size: {url}")
+        return {"size": size, "etag": response.headers.get("etag"),
+                "modified": response.headers.get("last-modified"),
+                "resolved_url": str(response.url)}
 
 
 class Catalog:
@@ -69,9 +90,9 @@ class Catalog:
 
     def _load(self, refresh=False):
         if refresh or not self.path.exists() or time.time() - self.path.stat().st_mtime > 86400:
-            with httpx.Client(timeout=60, follow_redirects=False) as client:
-                response = client.get(CATALOG_URL)
-                response.raise_for_status()
+            with (httpx.Client(timeout=60, follow_redirects=False) as client,
+                  source_stream(client, "GET", CATALOG_URL) as response):
+                response.read()
                 content = response.json()
             if content.get("type") != "FeatureCollection":
                 raise ValueError("Unexpected provider catalog format.")

@@ -55,6 +55,7 @@ React/MapLibre/TerraDraw -> same-origin FastAPI API -> SQLite queue -> separate 
 
 - Geofabrik's catalog resolves complete source coverage rather than assuming country names or bounding boxes prove coverage. Choose the smallest covering parent or a covering input set. Explicitly selected inputs must cover the AOI.
 - Downloads use advertised sizes and validators, safe resume when available, immutable cache manifests, and SHA-256 verification. Changed preflight sources require another review; network errors are visible, never replaced with empty maps.
+- Provider redirects are followed only through validated HTTPS source hosts, with a five-redirect limit. Preflight pins the final dated URL (for example Geofabrik's `latest` redirect); downloads and resumes use that snapshot and reject a changed destination or validator. Original and resolved URLs are retained in provenance.
 - Native subprocesses use argument arrays and owned Windows Job Objects. Cancellation and app shutdown kill only owned native descendants. SQLite persists stages and bounded logs.
 - Do not preclip PBFs using only node positions: that can lose crossing ways or enclosing polygons without interior vertices. The engine reads complete covering inputs and extracts the selected geometry after assembly.
 - The Java profile clips before rendering (preventing unsafe tile memoization across AOI boundaries) and after layer processing. Boundary tolerance is the MVT coordinate quantization, approximately one grid unit per tile, not a feature-level bounding-box approximation.

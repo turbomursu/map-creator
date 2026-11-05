@@ -1,4 +1,4 @@
-FIELDWORK 0.1.0 - WINDOWS X64 ONLINE INSTALLER
+FIELDWORK 0.1.1 - WINDOWS X64 ONLINE INSTALLER
 
 REQUIREMENTS
 Windows x64, Windows PowerShell 5.1 or newer, and internet access during setup.
@@ -50,6 +50,9 @@ before reinstalling to the same location. Back up your map data before updates.
 Do not run Uninstall.ps1 from the extracted installer package.
 
 KNOWN VALIDATION LIMITS
+Geofabrik "latest" redirects are supported: preflight pins the dated extract and
+downloads/resumes use that reviewed snapshot. If it changes or expires, rerun
+preflight rather than reusing an old review.
 Terrain means OSM natural features/land use, not elevation. PMTiles and MBTiles
 are supported. The ocean-polygon dataset host was unreachable during validation,
 so complete production-source generation remains unverified. Provider jobs fail

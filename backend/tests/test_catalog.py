@@ -1,6 +1,6 @@
 import httpx
 import pytest
-from app.catalog import Catalog, source_headers, trusted_url
+from app.catalog import Catalog, cache_key, source_headers, trusted_url
 from app.geometry import normalize_region
 from shapely.geometry import box, mapping
 
@@ -42,5 +42,65 @@ def test_restricts_source_hosts(url):
 def test_requires_source_size_and_does_not_follow_untrusted_redirects():
     transport = httpx.MockTransport(lambda request: httpx.Response(
         302, headers={"location": "https://evil.test/x"}))
-    with httpx.Client(transport=transport) as client, pytest.raises(httpx.HTTPStatusError):
+    with httpx.Client(transport=transport) as client, pytest.raises(ValueError, match="Untrusted"):
         source_headers(client, "https://download.geofabrik.de/data.pbf")
+
+
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+def test_source_headers_resolves_relative_dated_redirect(status):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.url.path.endswith("latest.osm.pbf"):
+            return httpx.Response(status, headers={"location": "finland-261103.osm.pbf"})
+        return httpx.Response(200, headers={"content-length": "123", "etag": '"dated"'})
+
+    with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+        result = source_headers(client, "https://download.geofabrik.de/europe/finland-latest.osm.pbf")
+    assert result["resolved_url"] == "https://download.geofabrik.de/europe/finland-261103.osm.pbf"
+    assert result["size"] == 123
+    assert [request.method for request in requests] == ["HEAD", "HEAD"]
+
+
+@pytest.mark.parametrize("location", [
+    "https://evil.test/file", "http://download.geofabrik.de/file",
+    "https://user@download.geofabrik.de/file", "https://download.geofabrik.de:444/file",
+])
+def test_redirect_target_is_checked_before_request(location):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(307, headers={"location": location})
+
+    with (httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as client,
+          pytest.raises(ValueError, match="Untrusted")):
+        source_headers(client, "https://download.geofabrik.de/latest.osm.pbf")
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("mode, message", [
+    ("loop", "loop"), ("chain", "Too many"), ("missing", "Location"),
+])
+def test_redirect_failures_are_bounded(mode, message):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        headers = {} if mode == "missing" else {
+            "location": "/latest" if mode == "loop" else f"/snapshot-{len(requests)}"}
+        return httpx.Response(307, headers=headers)
+
+    with (httpx.Client(transport=httpx.MockTransport(handler)) as client,
+          pytest.raises(ValueError, match=message)):
+        source_headers(client, "https://download.geofabrik.de/latest")
+    assert len(requests) <= 6
+
+
+def test_cache_identity_includes_reviewed_snapshot_url():
+    source = {"url": "https://download.geofabrik.de/finland-latest.osm.pbf",
+              "resolved_url": "https://download.geofabrik.de/finland-261103.osm.pbf",
+              "size": 123, "etag": '"same"', "modified": None}
+    assert cache_key(source) != cache_key({
+        **source, "resolved_url": "https://download.geofabrik.de/finland-261104.osm.pbf"})
