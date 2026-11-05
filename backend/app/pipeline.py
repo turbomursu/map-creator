@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 
 from app.artifacts import checksum, validate
-from app.catalog import GIB, cache_key, source_headers, source_stream, trusted_url
+from app.catalog import GIB, OCEAN_WARNING, cache_key, source_headers, source_stream, trusted_url
 from app.geometry import normalize_region
 from app.process import Cancelled, run_native
 
@@ -229,7 +229,6 @@ class Pipeline:
             ]
             for key, filename in [
                 ("lake_centerlines", "lake_centerline.shp.zip"),
-                ("water_polygons", "water-polygons-split-3857.zip"),
                 ("natural_earth", "natural_earth_vector.sqlite.zip"),
             ]:
                 if filename in auxiliary:
@@ -250,7 +249,8 @@ class Pipeline:
                 "sources": sources, "artifact": artifact,
                 "auxiliary": [{"id": name, "sha256": self.digest(job_id, path)}
                               for name, path in auxiliary.items()],
-                "limitations": ["MVT geometry quantization has up to one grid-unit boundary tolerance.",
+                "limitations": [OCEAN_WARNING,
+                                "MVT geometry quantization has up to one grid-unit boundary tolerance.",
                                 "No elevation or 3D terrain. Country-scale resource estimates are uncalibrated."],
             }
             self.check(job_id)

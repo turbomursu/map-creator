@@ -1,4 +1,4 @@
-FIELDWORK 0.1.3 - WINDOWS X64 ONLINE INSTALLER
+FIELDWORK 0.1.4 - WINDOWS X64 ONLINE INSTALLER
 
 REQUIREMENTS
 Windows x64, Windows PowerShell 5.1 or newer, and internet access during setup.
@@ -65,14 +65,14 @@ preservation and can delete entire application subfolders. Installing this new
 package does not retroactively change the old copy's uninstall behavior.
 
 KNOWN VALIDATION LIMITS
-Preflight checks the Geofabrik catalog/extract and required lake centerlines,
-ocean polygons and Natural Earth datasets, even when using a local PBF.
+Preflight checks the Geofabrik catalog/extract and required lake centerlines
+and Natural Earth datasets, even when using a local PBF.
 Network errors now name the failing URL/host and HEAD metadata or GET transfer
 operation. A timeout does not mean the selected region is invalid.
 Open that exact URL in a browser and check firewall/VPN/proxy access to HTTPS
 port 443. In PowerShell, test the named host, for example:
-  Test-NetConnection osmdata.openstreetmap.de -Port 443
-  curl.exe -I --connect-timeout 10 --max-time 30 "https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip"
+  Test-NetConnection dev.maptiler.download -Port 443
+  curl.exe -I --connect-timeout 10 --max-time 30 "https://dev.maptiler.download/geodata/omt/lake_centerline.shp.zip"
 If other sites work but this host does not, retry later or ask your network
 administrator/provider. If reporting it, include the full source-specific error
 and whether the same URL works in your browser. Never send proxy credentials.
@@ -82,10 +82,12 @@ Geofabrik "latest" redirects are supported: preflight pins the dated extract and
 downloads/resumes use that reviewed snapshot. If it changes or expires, rerun
 preflight rather than reusing an old review.
 Terrain means OSM natural features/land use, not elevation. PMTiles and MBTiles
-are supported. The ocean-polygon dataset host was unreachable during validation,
-so complete production-source generation remains unverified. Provider jobs fail
-explicitly when required sources are unavailable; no ocean data is silently
-omitted. A representative large-country RAM/disk/performance benchmark is still
+are supported. Ocean-polygon data is intentionally excluded from 0.1.4 onward:
+no ocean-data download is required. Inland water remains, but ocean/coastline
+water fills may be missing; warnings and export manifests record this limitation.
+Provider jobs still fail explicitly when other required sources are unavailable.
+Complete production-source generation remains unverified.
+A representative large-country RAM/disk/performance benchmark is still
 outstanding. Local/native fixture tests are not production certification.
 See README.md and THIRD_PARTY_NOTICES.md for architecture and attribution.
 

@@ -16,10 +16,9 @@ from app.models import JobSpec
 CATALOG_URL = "https://download.geofabrik.de/index-v1.json"
 GIB = 1024 ** 3
 PREFLIGHT_TIMEOUT = httpx.Timeout(60, connect=15)
+OCEAN_WARNING = "Ocean polygons are not included. Ocean/coastline water fills may be missing."
 AUXILIARY = [
     ("lake_centerline.shp.zip", "https://dev.maptiler.download/geodata/omt/lake_centerline.shp.zip"),
-    ("water-polygons-split-3857.zip",
-     "https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip"),
     ("natural_earth_vector.sqlite.zip",
      "https://dev.maptiler.download/geodata/omt/natural_earth_vector.sqlite.zip"),
 ]
@@ -193,6 +192,7 @@ class Catalog:
                 "disk_required": disk_required,
                 "free_disk": free, "available_memory": available, "errors": errors,
                 "warnings": [
+                    OCEAN_WARNING,
                     "Resource estimates are conservative heuristics, not a country-scale benchmark.",
                     "The engine reads complete covering extracts to preserve crossing ways and enclosing polygons.",
                     "Multiple extracts must have identical replication snapshots; unsafe merges will fail.",

@@ -1,7 +1,16 @@
 import httpx
 import pytest
-from app.catalog import Catalog, cache_key, source_headers, source_stream, trusted_url
+from app.catalog import (
+    AUXILIARY,
+    OCEAN_WARNING,
+    Catalog,
+    cache_key,
+    source_headers,
+    source_stream,
+    trusted_url,
+)
 from app.geometry import normalize_region
+from app.models import JobSpec
 from shapely.geometry import box, mapping
 
 
@@ -163,3 +172,26 @@ def test_transfer_read_timeout_is_contextualized_and_not_silently_truncated():
           pytest.raises(RuntimeError, match=r"data transfer \(GET\).*dated.osm.pbf"),
           source_stream(client, "GET", "https://download.geofabrik.de/dated.osm.pbf") as response):
         response.read()
+
+
+def test_preflight_has_no_ocean_dependency_and_reports_omission(tmp_path, monkeypatch):
+    import app.catalog
+
+    catalog = Catalog(tmp_path)
+    monkeypatch.setattr(catalog, "load", lambda: {
+        "features": [feature("country", box(0, 0, 2, 2))]})
+    requested = []
+
+    def handler(request):
+        requested.append(str(request.url))
+        return httpx.Response(200, headers={"content-length": "123", "etag": '"stable"'})
+
+    original = httpx.Client
+    monkeypatch.setattr(app.catalog.httpx, "Client", lambda **kwargs: original(
+        transport=httpx.MockTransport(handler), **kwargs))
+    plan = catalog.preflight(JobSpec(geometry=mapping(box(.2, .2, .8, .8))))
+    assert len(AUXILIARY) == 2
+    assert {source["id"] for source in plan["auxiliary"]} == {
+        "lake_centerline.shp.zip", "natural_earth_vector.sqlite.zip"}
+    assert not any("osmdata" in url or "water-polygons" in url for url in requested)
+    assert OCEAN_WARNING in plan["warnings"]

@@ -36,6 +36,7 @@ def test_real_pipeline_publishes_only_validated_output(tmp_path, extension):
     manifest = json.loads((directory / "manifest.json").read_text())
     assert manifest["sources"][0]["sha256"]
     assert manifest["artifact"]["metadata"]["attribution"]
+    assert any("Ocean polygons are not included" in item for item in manifest["limitations"])
     assert not (directory / "scratch").exists()
 
 

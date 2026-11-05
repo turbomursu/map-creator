@@ -148,8 +148,6 @@ public class RegionProfile extends OpenMapTilesProfile {
       runner.addShapefileSource("EPSG:3857", LAKE_CENTERLINE_SOURCE,
           sources.resolve("lake_centerline.shp.zip"),
           "https://dev.maptiler.download/geodata/omt/lake_centerline.shp.zip")
-        .addShapefileSource(WATER_POLYGON_SOURCE, sources.resolve("water-polygons-split-3857.zip"),
-          "https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip")
         .addNaturalEarthSource(NATURAL_EARTH_SOURCE, sources.resolve("natural_earth_vector.sqlite.zip"),
           "https://dev.maptiler.download/geodata/omt/natural_earth_vector.sqlite.zip");
     }

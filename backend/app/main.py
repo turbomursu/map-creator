@@ -167,7 +167,13 @@ def create_app(data_root: Path | None = None, start_worker=True) -> FastAPI:
             from shapely.geometry import shape
             from shapely.ops import unary_union
 
-            from app.catalog import AUXILIARY, PREFLIGHT_TIMEOUT, source_headers, with_cache_info
+            from app.catalog import (
+                AUXILIARY,
+                OCEAN_WARNING,
+                PREFLIGHT_TIMEOUT,
+                source_headers,
+                with_cache_info,
+            )
             region = normalize_region(spec.geometry)
             selected = [imports[source_id] for source_id in local_ids]
             coverage = unary_union([shape(source["coverage"]) for source in selected])
@@ -193,7 +199,8 @@ def create_app(data_root: Path | None = None, start_worker=True) -> FastAPI:
                     "available_memory": psutil.virtual_memory().available, "errors": errors,
                     "warnings": [("Local coordinate bounds do not prove source completeness. "
                                   "Use complete provider extracts or verified local snapshots."),
-                                 "Resource estimates are uncalibrated country-scale heuristics."]}
+                                 "Resource estimates are uncalibrated country-scale heuristics.",
+                                 OCEAN_WARNING]}
         return catalog.preflight(spec)
 
     @app.post("/api/preflight")
