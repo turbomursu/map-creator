@@ -1,6 +1,14 @@
 param([int]$Port = 8765, [switch]$NoBrowser)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+$settings = Join-Path $root 'fieldwork-settings.json'
+if (-not $env:MAP_CREATOR_DATA -and (Test-Path -LiteralPath $settings)) {
+    $configuration = Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json
+    if (-not $configuration.data_directory -or $configuration.data_directory -notmatch '^[A-Za-z]:\\') {
+        throw 'Invalid saved map data directory in fieldwork-settings.json.'
+    }
+    $env:MAP_CREATOR_DATA = $configuration.data_directory
+}
 $python = Join-Path $root '.tools\runtime\python.exe'
 if (-not (Test-Path $python)) { throw 'Run scripts\bootstrap.ps1 first.' }
 if (-not (Test-Path (Join-Path $root 'web\dist\index.html'))) {

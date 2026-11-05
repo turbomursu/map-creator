@@ -1,4 +1,4 @@
-FIELDWORK 0.1.1 - WINDOWS X64 ONLINE INSTALLER
+FIELDWORK 0.1.2 - WINDOWS X64 ONLINE INSTALLER
 
 REQUIREMENTS
 Windows x64, Windows PowerShell 5.1 or newer, and internet access during setup.
@@ -13,8 +13,9 @@ INSTALL
    .sha256 file. A checksum detects corruption, not an untrusted publisher.
 2. Extract ALL files using Windows "Extract All". Do not run inside the ZIP.
 3. Double-click Install.cmd. Do not select "Run as administrator".
-4. Setup verifies the packaged application files, installs to
-   %LOCALAPPDATA%\Fieldwork, downloads pinned native dependencies, installs Python
+4. Choose the application and map-data directories when prompted. Press Enter
+   for defaults: %LOCALAPPDATA%\Fieldwork and %LOCALAPPDATA%\MapCreator.
+   Setup verifies the packaged application files, downloads pinned native dependencies, installs Python
    dependencies, and creates a Start menu shortcut. Internet access is required
    to GitHub, conda.anaconda.org and PyPI. The prebuilt web UI is included.
 5. Launch Fieldwork from the Start menu. It opens http://127.0.0.1:8765.
@@ -27,16 +28,23 @@ Organization-managed execution restrictions may still block installation.
 
 CUSTOM INSTALLATION
 In 64-bit Windows PowerShell, from the extracted package directory:
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -InstallDirectory "D:\Apps\Fieldwork"
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -InstallDirectory "D:\Apps\Fieldwork" -DataDirectory "D:\MapData" -NonInteractive
+Explicit parameters skip their prompts; -NonInteractive uses defaults for any
+omitted directory. -NoShortcuts disables Start menu shortcut creation.
 Application installation paths must use ASCII characters because of native
 launcher limitations. Unicode map-data paths and imported filenames are tested.
 For a non-ASCII Windows user profile, choose a writable ASCII application path.
-Existing directories are never overwritten. Close/uninstall before reinstalling.
+Use absolute local-drive paths, not network paths, drive roots, junctions or
+symbolic links. Application and map data paths must be separate, with neither
+inside the other. Existing map-data directories are allowed and preserved.
+The application directory must be new or empty; nonempty directories are never
+overwritten. An existing Fieldwork shortcut is not overwritten either.
 Failed installations retain install.log and their partial directory for diagnosis.
 
 DATA AND PORTS
-Data is separate: %LOCALAPPDATA%\MapCreator. It survives reinstall/uninstall.
-To choose data storage or a different port, open PowerShell:
+The selected data directory is saved in fieldwork-settings.json in the application
+folder and used by normal Start menu launches. It survives uninstall.
+To temporarily override saved data storage or use a different port:
   $env:MAP_CREATOR_DATA = 'D:\MapData'
   & "$env:LOCALAPPDATA\Fieldwork\scripts\start.ps1" -Port 8766
 Only one app may use a data directory. Never expose the API beyond loopback.
@@ -44,9 +52,12 @@ Only one app may use a data directory. Never expose the API beyond loopback.
 UNINSTALL / UPDATE
 Close Fieldwork, then run the INSTALLED Uninstall.ps1 in Windows PowerShell:
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Fieldwork\Uninstall.ps1"
-Type REMOVE when prompted. This removes the runtime, application and its shortcut,
-but preserves map data and the installation folder. Remove the empty folder
-before reinstalling to the same location. Back up your map data before updates.
+Type REMOVE when prompted. Only unchanged installer-owned files and the exact
+owned shortcut are removed. Modified files and user-added files, even inside
+application subfolders, are preserved. Runtime-generated caches may also remain.
+Map data is never deleted. The installation folder remains; move any preserved
+files elsewhere before reinstalling into that folder. Back up data before updates.
+Uninstall refuses to traverse junctions/symbolic links or remove a running runtime.
 Do not run Uninstall.ps1 from the extracted installer package.
 
 KNOWN VALIDATION LIMITS
